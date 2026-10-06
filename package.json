@@ -1,0 +1,75 @@
+{
+  "name": "nudge-buddy",
+  "version": "1.3.1",
+  "description": "Nudge Buddy: a mini cartoon companion that pops up to remind you to drink water, rest your eyes, stretch, walk, eat and sleep on time.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "demo": "electron . --demo",
+    "dist": "electron-builder",
+    "setup": "electron . --setup",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.deskbuddy.app",
+    "productName": "Nudge Buddy",
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "setup-preload.js",
+      "index.html",
+      "setup.html",
+      "icon.png",
+      "character/**"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "category": "public.app-category.healthcare-fitness",
+      "icon": "build/icon.png",
+      "identity": "-",
+      "artifactName": "NudgeBuddy-${version}-mac.${ext}"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "shortcutName": "Nudge Buddy"
+    },
+    "portable": {
+      "artifactName": "NudgeBuddy-Portable-${version}.exe"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "dmg": {
+      "title": "Nudge Buddy ${version}"
+    }
+  }
+}

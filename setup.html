@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Nudge Buddy — Setup</title>
+<style>
+  :root { --ink: #1d1d1f; --muted: #6e6e73; --line: #e5e5ea; --bg: #f5f5f7; --card: #fff; --accent: #111; --chip: #f1f1f4; --err: #c62828; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; font-size: 13px; }
+  main { max-width: 560px; margin: 0 auto; padding: 24px 20px 96px; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+  header img { width: 64px; height: 80px; object-fit: contain; }
+  h1 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+  header p { margin: 4px 0 0; color: var(--muted); line-height: 1.4; }
+  section { background: var(--card); border-radius: 14px; padding: 16px 18px; margin-bottom: 14px;
+    box-shadow: 0 0 0 1px rgba(0,0,0,.04), 0 2px 8px rgba(0,0,0,.04); }
+  h2 { margin: 0 0 4px; font-size: 14px; }
+  .hint { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+  label { display: flex; align-items: center; gap: 8px; }
+  .field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .field:first-of-type { border-top: 0; }
+  .field.off .ctl { opacity: .4; pointer-events: none; }
+  .ctl { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  input[type=text], input[type=number], input[type=time] { font: inherit; color: var(--ink); background: #fff;
+    border: 1px solid #d2d2d7; border-radius: 8px; padding: 6px 8px; }
+  input[type=text] { width: 100%; font-size: 15px; padding: 9px 11px; }
+  input[type=number] { width: 66px; text-align: right; }
+  input:focus { outline: 2px solid #0071e3; outline-offset: -1px; border-color: transparent; }
+  input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--accent); margin: 0; }
+  .days { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .days label { cursor: pointer; }
+  .days input { display: none; }
+  .days span { display: inline-block; min-width: 46px; text-align: center; padding: 6px 0; border-radius: 999px;
+    background: var(--chip); color: var(--muted); font-weight: 600; font-size: 12px; transition: .15s; }
+  .days input:checked + span { background: var(--accent); color: #fff; }
+  #hoursBox.off { opacity: .4; pointer-events: none; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 18px; }
+  footer { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(245,245,247,.92); backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line); padding: 12px 20px; }
+  footer .in { max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+  #err { flex: 1; color: var(--err); font-weight: 500; }
+  button { border: 0; border-radius: 10px; padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+  .primary { background: var(--accent); color: #fff; } .primary:hover { background: #333; }
+  .ghost { background: #e8e8ed; color: #333; } .ghost:hover { background: #dcdce1; }
+  @media (max-width: 540px) { .row2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="character/happy.png" alt="">
+    <div>
+      <h1 id="heading">Hi! Let's set up your Nudge Buddy</h1>
+      <p>Tell me your name and your timings. I'll come out on your screen when your day starts
+        and remind you to stay healthy — only when you want me to.</p>
+    </div>
+  </header>
+
+  <section id="running" style="display:none">
+    <h2>Nudge Buddy is running</h2>
+    <p class="hint" style="margin:0">It stays hidden and pops up only for reminders. To stop it, press <b>Quit Nudge Buddy</b> below.
+      You can also open this window again any time <span id="reopenHow">from the Start menu or the desktop shortcut</span>.</p>
+  </section>
+
+  <section>
+    <h2>Your name</h2>
+    <p class="hint">Every reminder will use it.</p>
+    <input type="text" id="name" maxlength="30" placeholder="Type your name" autofocus>
+  </section>
+
+  <section>
+    <h2>Reminder hours</h2>
+    <p class="hint">The buddy stays hidden. Inside these hours it pops up only when a reminder is due, asks you,
+      and leaves again in under a minute. Outside these hours interval reminders stop. Meal and bedtime
+      reminders still come at their own times.</p>
+    <label><input type="checkbox" id="hoursOn"> Only remind me during these hours</label>
+    <div id="hoursBox">
+      <div class="field">
+        <span>Start at</span><span class="ctl"><input type="time" id="start"> and stop at <input type="time" id="end"></span>
+      </div>
+      <div class="days" id="days"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Reminders</h2>
+    <p class="hint">How often each reminder pops up. Timers start from the moment you press Save
+      (and again at your start time each day). They don't count while you're away or the screen is locked.</p>
+    <div id="rules"></div>
+  </section>
+
+  <section>
+    <h2>Meals &amp; bedtime</h2>
+    <p class="hint">Meal reminders come once a day, between these times. Bedtime repeats every 30 minutes until you sleep.</p>
+    <div class="field" id="f-lunch"><label><input type="checkbox" id="lunchOn"> 🍛 Lunch</label>
+      <span class="ctl"><input type="time" id="lunchFrom"> to <input type="time" id="lunchTo"></span></div>
+    <div class="field" id="f-dinner"><label><input type="checkbox" id="dinnerOn"> 🍽️ Dinner</label>
+      <span class="ctl"><input type="time" id="dinnerFrom"> to <input type="time" id="dinnerTo"></span></div>
+    <div class="field" id="f-bed"><label><input type="checkbox" id="bedOn"> 🌙 Bedtime after</label>
+      <span class="ctl"><input type="time" id="bedAt"></span></div>
+  </section>
+
+  <section>
+    <h2>Other conditions</h2>
+    <div class="row2">
+      <div class="field"><span>Idle after no input for</span><span class="ctl"><input type="number" id="idleMin" min="1" max="60"> min</span></div>
+      <div class="field"><span>Count as a break after</span><span class="ctl"><input type="number" id="awayMin" min="2" max="120"> min</span></div>
+      <div class="field"><span>Snooze / ask again after</span><span class="ctl"><input type="number" id="snoozeMin" min="1" max="120"> min</span></div>
+      <div class="field"><span>Reminder stays on screen</span><span class="ctl"><input type="number" id="cardSec" min="10" max="59"> sec</span></div>
+      <div class="field"><span>Water goal</span><span class="ctl"><input type="number" id="waterGoal" min="1" max="20"> glasses</span></div>
+    </div>
+    <div class="field"><label><input type="checkbox" id="startAtLogin"> Start Nudge Buddy when I log in to <span id="osName">Windows</span></label></div>
+  </section>
+</main>
+
+<footer><div class="in">
+  <button class="ghost" id="quit" style="display:none;color:#c62828">Quit Nudge Buddy</button>
+  <span id="err"></span>
+  <button class="ghost" id="defaults" title="Fill the form with the default timings (your name is kept)">Reset to defaults</button>
+  <button class="ghost" id="cancel">Cancel</button>
+  <button class="primary" id="save">Save &amp; start</button>
+</div></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+let catalog = [], defaults = null;
+
+function toggleOff(fieldId, checkboxId) {
+  const sync = () => $(fieldId).classList.toggle('off', !$(checkboxId).checked);
+  $(checkboxId).addEventListener('change', sync); sync();
+}
+
+window.setup.load().then(({ settings, defaults: d, catalog: c, firstRun, platform }) => {
+  catalog = c; defaults = d;
+  if (platform === 'darwin') { $('osName').textContent = 'my Mac'; $('reopenHow').textContent = 'by opening Nudge Buddy from Applications or Launchpad'; }
+  if (!firstRun) {
+    $('heading').textContent = 'Nudge Buddy settings'; $('save').textContent = 'Save';
+    $('running').style.display = 'block'; $('quit').style.display = '';
+  }
+  fillForm(settings);
+});
+
+function fillForm(s) {
+  if (s.name) $('name').value = s.name;
+
+  $('hoursOn').checked = s.hours.on; $('start').value = s.hours.start; $('end').value = s.hours.end;
+  $('days').innerHTML = DAY_ORDER.map(d =>
+    `<label><input type="checkbox" value="${d}" ${s.hours.days.includes(d) ? 'checked' : ''}><span>${DAY_NAMES[d]}</span></label>`).join('');
+  const syncHours = () => $('hoursBox').classList.toggle('off', !$('hoursOn').checked);
+  $('hoursOn').addEventListener('change', syncHours); syncHours();
+
+  $('rules').innerHTML = catalog.map(r => `
+    <div class="field" id="f-${r.id}">
+      <label><input type="checkbox" id="on-${r.id}" ${s.reminders[r.id].on ? 'checked' : ''}> ${r.label}</label>
+      <span class="ctl">every <input type="number" id="ev-${r.id}" min="1" max="600" value="${s.reminders[r.id].every}"> min</span>
+    </div>`).join('');
+  catalog.forEach(r => toggleOff('f-' + r.id, 'on-' + r.id));
+
+  $('lunchOn').checked = s.lunch.on; $('lunchFrom').value = s.lunch.from; $('lunchTo').value = s.lunch.to;
+  $('dinnerOn').checked = s.dinner.on; $('dinnerFrom').value = s.dinner.from; $('dinnerTo').value = s.dinner.to;
+  $('bedOn').checked = s.bedtime.on; $('bedAt').value = s.bedtime.at;
+  toggleOff('f-lunch', 'lunchOn'); toggleOff('f-dinner', 'dinnerOn'); toggleOff('f-bed', 'bedOn');
+
+  for (const k of ['idleMin', 'awayMin', 'snoozeMin', 'cardSec', 'waterGoal']) $(k).value = s[k];
+  $('startAtLogin').checked = s.startAtLogin;
+  $('name').focus();
+}
+$('defaults').onclick = () => { if (defaults) { fillForm(defaults); $('err').textContent = ''; } };
+
+function collect() {
+  return {
+    name: $('name').value,
+    hours: { on: $('hoursOn').checked, start: $('start').value, end: $('end').value,
+      days: [...document.querySelectorAll('#days input:checked')].map(i => Number(i.value)) },
+    reminders: Object.fromEntries(catalog.map(r => [r.id, { on: $('on-' + r.id).checked, every: Number($('ev-' + r.id).value) }])),
+    lunch: { on: $('lunchOn').checked, from: $('lunchFrom').value, to: $('lunchTo').value },
+    dinner: { on: $('dinnerOn').checked, from: $('dinnerFrom').value, to: $('dinnerTo').value },
+    bedtime: { on: $('bedOn').checked, at: $('bedAt').value },
+    idleMin: Number($('idleMin').value), awayMin: Number($('awayMin').value),
+    snoozeMin: Number($('snoozeMin').value), cardSec: Number($('cardSec').value), waterGoal: Number($('waterGoal').value),
+    startAtLogin: $('startAtLogin').checked,
+  };
+}
+
+$('save').onclick = async () => {
+  $('err').textContent = '';
+  const s = collect();
+  if (!s.name.trim()) { $('err').textContent = 'Please enter your name.'; $('name').focus(); return; }
+  if (s.awayMin <= s.idleMin) { $('err').textContent = '"Break" time must be longer than "idle" time.'; return; }
+  const res = await window.setup.save(s);
+  if (!res.ok) $('err').textContent = res.error;
+};
+$('cancel').onclick = () => window.setup.cancel();
+$('quit').onclick = () => window.setup.quit();
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') $('save').click(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,679 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>Nudge Buddy</title>
+<style>
+  :root {
+    --ink: #1d1d1f; --muted: #6e6e73;
+    --skin: #a26b47; --skin-dark: #8a5838; --skin-light: #b98058;
+    --hair: #141010; --shirt-line: #d3cdc2; --denim: #7da2cb; --denim-dark: #5f86b2;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; color: var(--ink); }
+
+  /* ---------- buddy ---------- */
+  #buddy { position: absolute; bottom: 0; left: 0; width: 112px; height: 243px; will-change: transform; }
+  #flip { width: 100%; height: 100%; transition: transform .25s; }
+  #flip svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 1px rgba(0,0,0,.12)); }
+  #buddy svg * { transform-box: view-box; }
+  #figure { transform-origin: 60px 250px; animation: breathe 3.6s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scaleY(1.008); } }
+
+  /* joints (origins set inline). Default = relaxed standing */
+  #uaL, #uaR, #faL, #faR, #legL, #legR, #head, #hL, #hR { transition: transform .5s cubic-bezier(.3,1.25,.5,1); }
+  #uaL { transform: rotate(5deg); }  #uaR { transform: rotate(-5deg); }
+  #faL { transform: rotate(-4deg); } #faR { transform: rotate(4deg); }
+
+  /* face states */
+  #eyesOpen { transform-origin: 60px 38px; animation: blink 5s infinite; }
+  @keyframes blink { 0%, 95%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
+  #eyesClosed, #lids, #mFlat, #mO, #mChew, #sweat, .prop { display: none; }
+  [data-mood="tired"] #mHappy { display: none; }
+  [data-mood="tired"] #mFlat, [data-mood="tired"] #lids { display: inline; }
+  [data-mood="thirsty"] #sweat { display: inline; animation: drip 1.8s ease-in infinite; }
+  @keyframes drip { from { transform: translateY(0); opacity: 1; } to { transform: translateY(8px); opacity: 0; } }
+
+  /* walk */
+  [data-pose="walk"] #legL, [data-pose="walk"] #uaR { animation: swingA .5s ease-in-out infinite alternate; }
+  [data-pose="walk"] #legR, [data-pose="walk"] #uaL { animation: swingB .5s ease-in-out infinite alternate; }
+  [data-pose="walk"] #figure { animation: bob .25s ease-in-out infinite alternate; }
+  @keyframes swingA { from { transform: rotate(-12deg); } to { transform: rotate(12deg); } }
+  @keyframes swingB { from { transform: rotate(12deg); } to { transform: rotate(-12deg); } }
+  @keyframes bob { to { transform: translateY(-2.5px); } }
+
+  /* drink / snack / meal: bring the hand to the mouth again and again */
+  [data-pose="drink"] #uaR, [data-pose="snack"] #uaR, [data-pose="meal"] #uaR, [data-pose="sleepy"] #uaR { transform: rotate(30deg); }
+  [data-pose="drink"] #faR, [data-pose="snack"] #faR, [data-pose="meal"] #faR { animation: sip 2.6s ease-in-out infinite; }
+  @keyframes sip { 0%, 100% { transform: rotate(70deg); } 30%, 70% { transform: rotate(141deg); } }
+  [data-pose="drink"] #bottle, [data-pose="snack"] #biscuit, [data-pose="meal"] #morsel, [data-pose="meal"] #plate { display: inline; }
+  [data-pose="meal"] #uaL { transform: rotate(-10deg); }
+  [data-pose="meal"] #faL { transform: rotate(-80deg); }
+  [data-pose="drink"] #mHappy, [data-pose="drink"] #mFlat { display: none; }
+  [data-pose="drink"] #mO { display: inline; }
+  [data-pose="snack"] #mHappy, [data-pose="snack"] #mFlat,
+  [data-pose="meal"] #mHappy, [data-pose="meal"] #mFlat { display: none; }
+  [data-pose="snack"] #mChew, [data-pose="meal"] #mChew { display: inline; transform-origin: 60px 52.6px; animation: chew .35s infinite alternate; }
+  @keyframes chew { from { transform: scaleY(.4); } to { transform: scaleY(1.2); } }
+
+  /* eyes: shade the eyes with a hand and look far away */
+  [data-pose="eyes"] #uaR { transform: rotate(-130deg); }
+  [data-pose="eyes"] #faR { transform: rotate(-116deg); }
+  [data-pose="eyes"] .pupil { animation: look 3.2s ease-in-out infinite; }
+  @keyframes look { 0%, 100% { transform: translateX(-1.4px); } 50% { transform: translateX(1.4px); } }
+
+  /* stretch */
+  [data-pose="stretch"] #uaL { transform: rotate(160deg); } [data-pose="stretch"] #faL { transform: rotate(-8deg); }
+  [data-pose="stretch"] #uaR { transform: rotate(-160deg); } [data-pose="stretch"] #faR { transform: rotate(8deg); }
+  [data-pose="stretch"] #figure { animation: reach 2s ease-in-out infinite; }
+  @keyframes reach { 50% { transform: translateY(-4px) scaleY(1.02); } }
+
+  /* posture: hands on hips, stand tall */
+  [data-pose="posture"] #uaL { transform: rotate(35deg); }  [data-pose="posture"] #faL { transform: rotate(-62deg); }
+  [data-pose="posture"] #uaR { transform: rotate(-35deg); } [data-pose="posture"] #faR { transform: rotate(62deg); }
+  [data-pose="posture"] #figure { animation: tall 2.4s ease-in-out infinite; }
+  @keyframes tall { 50% { transform: translateY(-3px) scaleY(1.02); } }
+
+  /* wrist: forearms up, roll the wrists */
+  [data-pose="wrist"] #uaL { transform: rotate(-10deg); } [data-pose="wrist"] #faL { transform: rotate(-165deg); }
+  [data-pose="wrist"] #uaR { transform: rotate(10deg); }  [data-pose="wrist"] #faR { transform: rotate(165deg); }
+  [data-pose="wrist"] #hL { animation: twist .45s ease-in-out infinite alternate; }
+  [data-pose="wrist"] #hR { animation: twist .45s ease-in-out infinite alternate-reverse; }
+  @keyframes twist { from { transform: rotate(-28deg); } to { transform: rotate(28deg); } }
+
+  /* breathe: arms open, chest rises slowly, eyes closed */
+  [data-pose="breathe"] #uaL { transform: rotate(16deg); } [data-pose="breathe"] #uaR { transform: rotate(-16deg); }
+  [data-pose="breathe"] #figure { animation: deep 5s ease-in-out infinite; }
+  @keyframes deep { 40%, 55% { transform: scale(1.025, 1.015); } }
+  [data-pose="breathe"] #eyesOpen, [data-pose="sleep"] #eyesOpen { display: none; }
+  [data-pose="breathe"] #eyesClosed, [data-pose="sleep"] #eyesClosed { display: inline; }
+
+  /* wave */
+  [data-pose="wave"] #uaR { transform: rotate(-150deg); }
+  [data-pose="wave"] #faR { animation: waveF .45s ease-in-out infinite alternate; }
+  @keyframes waveF { from { transform: rotate(-28deg); } to { transform: rotate(22deg); } }
+
+  /* cheer */
+  [data-pose="cheer"] #uaL { transform: rotate(150deg); } [data-pose="cheer"] #uaR { transform: rotate(-150deg); }
+  [data-pose="cheer"] #figure { animation: jump .42s ease-out infinite alternate; }
+  @keyframes jump { to { transform: translateY(-12px); } }
+
+  /* sleepy (bedtime yawn) + sleep (away) */
+  [data-pose="sleepy"] #faR { transform: rotate(141deg); }
+  [data-pose="sleepy"] #lids { display: inline; }
+  [data-pose="sleepy"] #mHappy, [data-pose="sleepy"] #mFlat { display: none; }
+  [data-pose="sleepy"] #mO { display: inline; }
+  [data-pose="sleep"] #lids { display: none; }
+  [data-pose="sleep"] #head { transform: rotate(-7deg); }
+  [data-pose="sleep"] #figure { animation: breathe 5s ease-in-out infinite; }
+
+  .fx { position: absolute; left: 55%; top: 6px; pointer-events: none; font-size: 17px; opacity: 0; font-weight: 700; color: #6b7c93; }
+  [data-pose="sleep"] .zzz { animation: float 2.6s ease-out infinite; }
+  [data-pose="sleep"] .zzz:nth-of-type(2) { animation-delay: 1.3s; }
+  .hearts.on { animation: float 1.4s ease-out forwards; }
+  @keyframes float { 0% { opacity: 0; transform: translate(0, 10px) scale(.6); } 20% { opacity: 1; }
+    100% { opacity: 0; transform: translate(18px, -40px) scale(1.1); } }
+
+  /* ---------- cards ---------- */
+  .card { position: absolute; bottom: 44px; width: 300px; background: #fff; border-radius: 18px;
+    padding: 18px 18px 16px; box-shadow: 0 12px 40px rgba(0,0,0,.18), 0 0 0 1px rgba(0,0,0,.05);
+    opacity: 0; transform: translateY(12px) scale(.96); pointer-events: none;
+    transition: opacity .25s, transform .3s cubic-bezier(.3,1.4,.5,1); }
+  .card.show { opacity: 1; transform: none; pointer-events: auto; }
+  .card h3 { margin: 0 0 16px; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+  .card p { margin: 0 0 14px; font-size: 11.5px; color: var(--muted); line-height: 1.4; }
+  .timer { height: 3px; border-radius: 2px; background: #eee; margin: 12px 0 0; overflow: hidden; }
+  .timer i { display: block; height: 100%; background: #bbb; transform-origin: left; }
+  .timer i.run { animation: drain linear forwards; }
+  @keyframes drain { to { transform: scaleX(0); } }
+  .row { display: flex; gap: 10px; }
+  button { flex: 1; border: 0; border-radius: 10px; padding: 9px 10px; font-family: inherit; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: transform .1s, background .15s; }
+  button:active { transform: scale(.96); }
+  .primary { background: #111; color: #fff; } .primary:hover { background: #333; }
+  .ghost { background: #f1f1f4; color: #333; } .ghost:hover { background: #e6e6ea; }
+
+  #stats h3 { margin-bottom: 2px; }
+  .big { font-size: 28px; font-weight: 700; letter-spacing: -.02em; margin: 2px 0 0; }
+  .cap { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+  .chip { background: #f6f6f8; border-radius: 10px; padding: 6px 8px; font-size: 10.5px; color: var(--muted); }
+  .chip b { display: block; font-size: 14px; color: var(--ink); }
+  .water { display: flex; align-items: center; gap: 1px; margin-bottom: 6px; font-size: 12.5px; }
+  .water .drop { filter: grayscale(1); opacity: .3; transition: .3s; }
+  .water .drop.full { filter: none; opacity: 1; }
+  .water button { flex: 0 0 auto; padding: 5px 7px; font-size: 10.5px; margin-left: 4px; }
+  .water button:first-of-type { margin-left: auto; }
+  .mood { font-size: 11.5px; color: var(--muted); margin-bottom: 12px; }
+
+  /* ---------- realistic sprite mode (character/poses.js present) ---------- */
+  #sprite, #attn, #prop { display: none; }
+  body.img #flip svg { display: none; }
+  body.img #sprite { display: block; height: 100%; width: auto; margin: 0 auto; cursor: pointer;
+    transform-origin: 50% 100%; filter: drop-shadow(0 6px 6px rgba(0,0,0,.22)); }
+  body.img [data-pose="walk"] #sprite { animation: sbob .33s ease-in-out infinite alternate; }
+  @keyframes sbob { to { transform: translateY(-4px); } }
+  body.img .remindish #sprite { animation: nudge 1.3s ease-in-out infinite; }
+  @keyframes nudge { 0%, 100% { transform: none; } 20% { transform: translateY(-8px) rotate(-2deg); } 35% { transform: none; } 50% { transform: translateY(-4px) rotate(1.5deg); } 62% { transform: none; } }
+  body.img [data-pose="posture"] #sprite { animation: tall 2.4s ease-in-out infinite; }
+  body.img [data-pose="breathe"] #sprite { animation: deep 5s ease-in-out infinite; }
+  body.img [data-pose="cheer"] #sprite { animation: jump .42s ease-out infinite alternate; }
+  body.img [data-pose="sleep"] #sprite { animation: snooze 4.5s ease-in-out infinite; filter: brightness(.82) saturate(.8) drop-shadow(0 6px 6px rgba(0,0,0,.22)); }
+  @keyframes snooze { 50% { transform: rotate(-3deg) scaleY(.985); } }
+  body.img .remindish #attn, body.img .remindish #prop { display: block; }
+  body.img .framed #sprite { animation: none; }
+  body.img .framed #prop { display: none; }
+  #attn { position: absolute; top: 2px; width: 34px; height: 30px; pointer-events: none; animation: flick .6s steps(2) infinite; }
+  @keyframes flick { 50% { opacity: .35; transform: scale(.9); } }
+  #prop { position: absolute; top: 36%; width: 40px; height: 40px; border-radius: 50%; background: #fff; pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,.18); font-size: 22px; line-height: 40px; text-align: center; animation: pbob 1.6s ease-in-out infinite; }
+  @keyframes pbob { 50% { transform: translateY(-5px); } }
+
+  /* upper-body "peek" animations */
+  #peek { position: absolute; left: 0; bottom: 0; width: auto; pointer-events: none; opacity: 0;
+    transform: translateY(45%); transition: transform .5s cubic-bezier(.3,1.3,.5,1), opacity .25s;
+    filter: drop-shadow(0 3px 5px rgba(0,0,0,.18)); }
+  #peek.show { opacity: 1; transform: none; }
+  #peek.away { transition: opacity .6s, transform .8s; }
+  #buddy.hidden { opacity: 0; transition: opacity .25s; }
+  #buddy { transition: opacity .35s; }
+
+  #bubble { position: absolute; bottom: 252px; background: #fff; border-radius: 14px; padding: 8px 12px;
+    font-size: 12px; font-weight: 500; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.15);
+    opacity: 0; transform: translateY(6px); transition: .25s; pointer-events: none; }
+  #bubble.show { opacity: 1; transform: none; }
+  #bubble::after { content: ""; position: absolute; left: 24px; bottom: -6px; border: 6px solid transparent;
+    border-bottom: 0; border-top-color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="buddy" data-pose="idle" data-mood="happy">
+  <div id="flip">
+    <svg class="hit" viewBox="0 0 120 260" aria-label="Krishna, your desk buddy">
+      <defs>
+        <linearGradient id="gSkin" x1="0" x2="1"><stop offset="0" stop-color="#b98058"/><stop offset=".55" stop-color="#a26b47"/><stop offset="1" stop-color="#85543a"/></linearGradient>
+        <linearGradient id="gArm" x1="0" x2="1"><stop offset="0" stop-color="#ad7550"/><stop offset="1" stop-color="#875538"/></linearGradient>
+        <linearGradient id="gShirt" x1="0" x2="1"><stop offset="0" stop-color="#fdfcfa"/><stop offset=".6" stop-color="#f3f0eb"/><stop offset="1" stop-color="#e2ded6"/></linearGradient>
+        <linearGradient id="gDenim" x1="0" x2="1"><stop offset="0" stop-color="#93b4d8"/><stop offset=".5" stop-color="#7ea3cc"/><stop offset="1" stop-color="#6589b4"/></linearGradient>
+        <linearGradient id="gSteel" x1="0" x2="1"><stop offset="0" stop-color="#e3e7ea"/><stop offset=".45" stop-color="#b9c0c6"/><stop offset="1" stop-color="#858d95"/></linearGradient>
+        <pattern id="quilt" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+          <path d="M0 0 H6 M0 0 V6" stroke="#cfc8bc" stroke-width=".5" fill="none" opacity=".75"/>
+        </pattern>
+        <pattern id="denimTex" width="2.4" height="2.4" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">
+          <path d="M0 0 V2.4" stroke="#ffffff" stroke-width=".35" opacity=".18"/>
+        </pattern>
+      </defs>
+
+      <ellipse cx="60" cy="252" rx="32" ry="5" fill="rgba(0,0,0,.16)"/>
+
+      <g id="figure">
+        <!-- hips -->
+        <path d="M42 120 H78 L78 134 Q60 140 42 134 Z" fill="url(#gDenim)"/>
+        <!-- legs -->
+        <g id="legL" style="transform-origin:51px 124px">
+          <path d="M42 121 H59.5 L59 238 H43.5 Z" fill="url(#gDenim)"/>
+          <path d="M42 121 H59.5 L59 238 H43.5 Z" fill="url(#denimTex)"/>
+          <path d="M45 180 q3 1 5 0 M44.6 226 q7 3 14 0 M44.6 232 q7 -3 14 0" stroke="var(--denim-dark)" stroke-width=".8" fill="none"/>
+          <path d="M47 235 h11.5 q3 0 3.5 5 l.5 6.5 h-26 q-1 -5.5 5.5 -7.5 q3 -1 5 -4 z" fill="#8a8572" stroke="#6d6958" stroke-width=".6"/>
+          <path d="M49 237.5 l6 1.5 M48.5 240 l6.5 1.5 M48 242.5 l6.5 1" stroke="#cfcab9" stroke-width=".7"/>
+          <rect x="35" y="245.5" width="28" height="4.5" rx="2" fill="#ebe7dd" stroke="#c9c4b7" stroke-width=".5"/>
+        </g>
+        <g id="legR" style="transform-origin:69px 124px">
+          <path d="M60.5 121 H78 L76.5 238 H61 Z" fill="url(#gDenim)"/>
+          <path d="M60.5 121 H78 L76.5 238 H61 Z" fill="url(#denimTex)"/>
+          <path d="M70 172 q3 1 5 0 M61.6 226 q7 3 14 0 M61.6 232 q7 -3 14 0" stroke="var(--denim-dark)" stroke-width=".8" fill="none"/>
+          <path d="M61.5 235 h11.5 q2 3 5 4 q6.5 2 5.5 7.5 h-26 l.5 -6.5 q.5 -5 3.5 -5 z" fill="#8a8572" stroke="#6d6958" stroke-width=".6"/>
+          <path d="M65 239 l6 -1.5 M65 241.5 l6.5 -1.5 M65.5 243.5 l6.5 -1" stroke="#cfcab9" stroke-width=".7"/>
+          <rect x="57" y="245.5" width="28" height="4.5" rx="2" fill="#ebe7dd" stroke="#c9c4b7" stroke-width=".5"/>
+        </g>
+
+        <!-- torso: white quilted camp-collar shirt -->
+        <g id="torso" style="transform-origin:60px 128px">
+          <rect x="53" y="53" width="14" height="13" fill="var(--skin-dark)"/>
+          <path d="M40 66 Q60 60 80 66 L85 75 L84.5 129 Q60 134 35.5 129 L35 75 Z" fill="url(#gShirt)"/>
+          <path d="M40 66 Q60 60 80 66 L85 75 L84.5 129 Q60 134 35.5 129 L35 75 Z" fill="url(#quilt)"/>
+          <path d="M54 61 L66 61 L60 84 Z" fill="var(--skin-dark)"/>
+          <path d="M54 61 L60 84" stroke="#6e4329" stroke-width=".5" opacity=".5"/>
+          <path d="M52.5 60.5 Q60 57 67.5 60.5 L66 62.5 Q60 60 54 62.5 Z" fill="#efebe5" stroke="var(--shirt-line)" stroke-width=".5"/>
+          <path d="M53 61 L46.5 66.5 L52 76.5 L60 85 L55.5 70 Z" fill="#faf8f5" stroke="var(--shirt-line)" stroke-width=".7" stroke-linejoin="round"/>
+          <path d="M67 61 L73.5 66.5 L68 76.5 L60 85 L64.5 70 Z" fill="#f2efea" stroke="var(--shirt-line)" stroke-width=".7" stroke-linejoin="round"/>
+          <path d="M60.6 85 V131" stroke="var(--shirt-line)" stroke-width=".8"/>
+          <g fill="#ece8e1" stroke="#c4bdb0" stroke-width=".4">
+            <circle cx="59.4" cy="92" r="1.1"/><circle cx="59.4" cy="103" r="1.1"/><circle cx="59.4" cy="114" r="1.1"/><circle cx="59.4" cy="125" r="1.1"/>
+          </g>
+          <path d="M45 98 q4 12 1.5 26 M76 95 q-3 13 -1 28 M52 128 q8 -2 16 1" stroke="#dad4ca" stroke-width=".9" fill="none"/>
+        </g>
+
+        <!-- head -->
+        <g id="head" style="transform-origin:60px 60px">
+          <ellipse cx="42.6" cy="40" rx="3" ry="5" fill="#9a6343"/>
+          <ellipse cx="77.4" cy="40" rx="3" ry="5" fill="#84533a"/>
+          <path d="M43 30 Q43 14 60 14 Q77 14 77 30 L77 44 Q76 58 60 61 Q44 58 43 44 Z" fill="url(#gSkin)"/>
+          <!-- beard + moustache -->
+          <path d="M43.5 41 Q45 56.5 60 60.8 Q75 56.5 76.5 41 Q74.5 50 68 53 Q60 55.8 52 53 Q45.5 50 43.5 41 Z" fill="#1d1410" opacity=".55"/>
+          <ellipse cx="60" cy="57.3" rx="6.2" ry="3.4" fill="#1d1410" opacity=".45"/>
+          <path d="M52.8 48.6 Q60 45.8 67.2 48.6 Q66 50.8 60 49.8 Q54 50.8 52.8 48.6 Z" fill="#1a120e" opacity=".88"/>
+          <!-- mouth variants -->
+          <path id="mHappy" d="M56 52.2 Q60 54.6 64 52.2" stroke="#4a2a1c" stroke-width="1.1" fill="none" stroke-linecap="round"/>
+          <path id="mFlat" d="M56.5 52.6 H63.5" stroke="#4a2a1c" stroke-width="1.1" stroke-linecap="round"/>
+          <ellipse id="mO" cx="60" cy="53" rx="2" ry="2.4" fill="#3a2016"/>
+          <ellipse id="mChew" cx="60" cy="52.6" rx="2.6" ry="1.2" fill="#3a2016"/>
+          <!-- nose -->
+          <path d="M60.3 37.5 L58.7 44.6 Q60.2 46.2 61.9 44.8" stroke="#6e4329" stroke-width=".9" fill="none" stroke-linecap="round"/>
+          <!-- eyes + brows -->
+          <g id="eyesOpen">
+            <ellipse cx="51" cy="38.4" rx="2.7" ry="1.7" fill="#efe8e0"/><ellipse cx="69" cy="38.4" rx="2.7" ry="1.7" fill="#efe8e0"/>
+            <circle class="pupil" cx="51.2" cy="38.4" r="1.45" fill="#1b1411"/><circle class="pupil" cx="69.2" cy="38.4" r="1.45" fill="#1b1411"/>
+            <circle class="pupil" cx="51.7" cy="37.9" r=".45" fill="#fff"/><circle class="pupil" cx="69.7" cy="37.9" r=".45" fill="#fff"/>
+          </g>
+          <g id="lids" fill="url(#gSkin)"><rect x="47.5" y="35.6" width="7.4" height="3"/><rect x="65.5" y="35.6" width="7.4" height="3"/></g>
+          <g id="eyesClosed" stroke="#1b1411" stroke-width="1" fill="none" stroke-linecap="round">
+            <path d="M48.2 38.6 Q51 40.2 53.8 38.6"/><path d="M66.2 38.6 Q69 40.2 71.8 38.6"/>
+          </g>
+          <path d="M46.6 33.4 Q51 31.3 55.4 33" stroke="#17110e" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <path d="M64.6 33 Q69 31.3 73.4 33.4" stroke="#17110e" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <!-- glasses -->
+          <g stroke="#262321" stroke-width="1.5" fill="rgba(205,222,236,.14)">
+            <rect x="45.4" y="34.4" width="11.2" height="8.2" rx="1.9"/><rect x="63.4" y="34.4" width="11.2" height="8.2" rx="1.9"/>
+            <path d="M56.6 37.4 Q60 35.8 63.4 37.4 M45.4 37 L42.4 38.6 M74.6 37 L77.6 38.6" fill="none"/>
+          </g>
+          <path d="M47 41 L50 35.6 M65 41 L68 35.6" stroke="#fff" stroke-width=".6" opacity=".35"/>
+          <!-- hair -->
+          <path d="M42 33 Q39.5 18 47 11.5 Q54 6.5 62 7.5 Q72.5 7.8 77.2 14 Q80.6 20.5 78 33 Q77.2 24.5 73 21.4 Q66 16.8 58 17.8 Q50 18 46 23 Q43 27 42 33 Z" fill="var(--hair)"/>
+          <path d="M48 13.5 Q56 10 66 11.5 M45 18 Q52 14.5 60 14.8 M68 13 Q74 15 76.5 20" stroke="#34292a" stroke-width=".7" fill="none"/>
+          <rect x="42.4" y="30" width="2.6" height="9" rx="1" fill="var(--hair)" opacity=".85"/>
+          <rect x="75" y="30" width="2.6" height="9" rx="1" fill="var(--hair)" opacity=".85"/>
+          <path id="sweat" d="M80 24 q3.2 4.6 0 7 q-3.2 -2.4 0 -7 z" fill="#7fd3f7"/>
+        </g>
+
+        <!-- left arm (viewer's left) with the gold bracelet -->
+        <g id="uaL" style="transform-origin:38px 70px">
+          <rect x="33.5" y="88" width="10" height="14" rx="5" fill="url(#gArm)"/>
+          <path d="M31 67.5 Q38 63 45.5 68 L47 94.5 Q39 97.5 31 94.5 Z" fill="url(#gShirt)"/>
+          <path d="M31 67.5 Q38 63 45.5 68 L47 94.5 Q39 97.5 31 94.5 Z" fill="url(#quilt)"/>
+          <path d="M31 94.5 Q39 97.5 47 94.5" stroke="var(--shirt-line)" stroke-width=".8" fill="none"/>
+          <g id="faL" style="transform-origin:38.5px 100px">
+            <path d="M33.5 98 Q33 116 34.6 132.5 H42.4 Q44 116 43.5 98 Z" fill="url(#gArm)"/>
+            <rect x="34" y="126" width="9" height="1.9" rx=".9" fill="#d6a83e"/>
+            <rect x="34" y="128.4" width="9" height=".8" rx=".4" fill="#b58622"/>
+            <g id="hL" style="transform-origin:38.5px 132px">
+              <path d="M34 131.5 Q33 139 36 143 Q38.5 145 41 143 Q44 139 43 131.5 Z" fill="#a26b47"/>
+              <path d="M34.2 133 Q31.6 136 33 139" stroke="#935e3d" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+              <g id="plate" class="prop" transform="rotate(90 38.5 138)">
+                <ellipse cx="38.5" cy="140" rx="13" ry="3.4" fill="#f6f4ef" stroke="#b5ad9f" stroke-width=".6"/>
+                <ellipse cx="38.5" cy="138.2" rx="8" ry="2.8" fill="#e3a43c"/>
+                <circle cx="35.5" cy="137.6" r=".9" fill="#4f8a3a"/><circle cx="40.5" cy="137" r=".8" fill="#4f8a3a"/><circle cx="38" cy="136.6" r=".7" fill="#c0512f"/>
+              </g>
+            </g>
+          </g>
+        </g>
+
+        <!-- right arm (viewer's right) holds the props -->
+        <g id="uaR" style="transform-origin:82px 70px">
+          <rect x="76.5" y="88" width="10" height="14" rx="5" fill="url(#gArm)"/>
+          <path d="M89 67.5 Q82 63 74.5 68 L73 94.5 Q81 97.5 89 94.5 Z" fill="url(#gShirt)"/>
+          <path d="M89 67.5 Q82 63 74.5 68 L73 94.5 Q81 97.5 89 94.5 Z" fill="url(#quilt)"/>
+          <path d="M73 94.5 Q81 97.5 89 94.5" stroke="var(--shirt-line)" stroke-width=".8" fill="none"/>
+          <g id="faR" style="transform-origin:81.5px 100px">
+            <path d="M76.5 98 Q76 116 77.6 132.5 H85.4 Q87 116 86.5 98 Z" fill="url(#gArm)"/>
+            <g id="hR" style="transform-origin:81.5px 132px">
+              <g id="bottle" class="prop">
+                <rect x="77.3" y="121" width="8.4" height="23" rx="2.6" fill="url(#gSteel)" stroke="#6f777e" stroke-width=".5"/>
+                <rect x="78" y="143" width="7" height="5" rx="1.4" fill="#2e3337"/>
+                <rect x="78.6" y="124" width="1.4" height="16" rx=".7" fill="#fff" opacity=".55"/>
+              </g>
+              <g id="biscuit" class="prop">
+                <circle cx="81.5" cy="144" r="5.4" fill="#c98b47" stroke="#a46c33" stroke-width=".6"/>
+                <circle cx="79.8" cy="142.8" r=".6" fill="#8c5a28"/><circle cx="83" cy="143.6" r=".6" fill="#8c5a28"/><circle cx="81.4" cy="146" r=".6" fill="#8c5a28"/>
+              </g>
+              <circle id="morsel" class="prop" cx="81.5" cy="142" r="2.6" fill="#e3a43c"/>
+              <path d="M77 131.5 Q76 139 79 143 Q81.5 145 84 143 Q87 139 86 131.5 Z" fill="#97613f"/>
+              <path d="M85.8 133 Q88.4 136 87 139" stroke="#875538" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+            </g>
+          </g>
+        </g>
+      </g>
+    </svg>
+    <img id="sprite" class="hit" alt="Krishna">
+  </div>
+  <svg id="attn" viewBox="0 0 34 30"><g stroke="#f6b81c" stroke-width="3.2" stroke-linecap="round">
+    <path d="M6 18 L2 9"/><path d="M15 14 L15 3"/><path d="M24 18 L30 10"/></g></svg>
+  <div id="prop"></div>
+  <span class="fx zzz">z</span><span class="fx zzz">z</span>
+  <span class="fx hearts">💖</span>
+</div>
+
+<div id="bubble"></div>
+
+<img id="peek" alt="">
+
+<div id="reminder" class="card hit">
+  <h3 id="r-title">Drink water right now</h3>
+  <p id="r-sub">A tiny reminder from your future self 💧</p>
+  <div class="row">
+    <button class="primary" id="r-yes">Yes, I drank</button>
+    <button class="ghost" id="r-snooze">Snooze 15m</button>
+  </div>
+  <div class="timer"><i id="r-timer"></i></div>
+</div>
+
+<div id="stats" class="card hit">
+  <h3 id="s-title">Your day</h3>
+  <div class="big" id="s-total">0 min</div>
+  <div class="cap" id="s-cap">screen time today</div>
+  <div class="chips" id="s-chips"></div>
+  <div class="water" id="s-water"></div>
+  <div class="mood" id="s-mood"></div>
+  <div class="row">
+    <button class="ghost" id="s-pause">Pause 1h</button>
+    <button class="primary" id="s-close">Close</button>
+  </div>
+</div>
+
+<script src="character/poses.js"></script>
+<script>
+// Falls back to a fake API so the page can be previewed in a normal browser:
+// it cycles through every reminder type each time you answer one.
+const api = window.deskBuddy || (() => {
+  const h = {}; let active = 2 * 3600 + 900, cont = 40 * 60;
+  const s = { activeSec: 0, longestSession: 5400, water: 3, eyeRests: 5, posture: 3, wrist: 2, stretches: 2, breaths: 1, walks: 1, snacks: 1, meals: 1, breaks: 3 };
+  const demo = [
+    ['water', 'Krishna, drink water right now', 'A tiny reminder from your future self 💧', 'Yes, I drank', 'drink'],
+    ['snack', 'Snack break, Krishna 🍎', 'Grab some fruit, nuts, or a biscuit with your tea.', 'Ate a snack', 'snack'],
+    ['eyes', 'Rest your eyes, Krishna', 'Look at something 20 feet away for 20 seconds.', 'Done', 'eyes'],
+    ['posture', 'Posture check!', 'Sit back, relax your shoulders, keep the screen at eye level.', 'Sitting straight', 'posture'],
+    ['wrist', 'Give your hands a break ✋', 'Roll your wrists and stretch your fingers for 30 seconds.', 'Done', 'wrist'],
+    ['stretch', 'Stretch time, Krishna', 'Arms up high, then roll your neck and shoulders.', 'Stretched!', 'stretch'],
+    ['breathe', 'Take 5 deep breaths', 'In for 4… hold for 4… out for 6. Slow and easy.', 'Feeling calm', 'breathe'],
+    ['walk', 'Go for a short walk 🚶', "You've been on screen for 1h 30m. Five minutes of walking helps a lot.", "I'm going", 'wave'],
+    ['lunch', 'Lunch time, Krishna! 🍛', 'Step away from the screen and enjoy your meal properly.', 'Eating now', 'meal'],
+    ['bedtime', "It's late, Krishna — time to sleep 🌙", "It's 11:30 PM. Tomorrow-you wants some rest.", 'Good night', 'sleepy'],
+  ];
+  let i = 0;
+  const next = () => { const [id, title, sub, yes, anim] = demo[i++ % demo.length]; h.reminder && h.reminder({ id, title, sub, yes, anim }); };
+  setInterval(() => { active++; cont++; s.activeSec = active;
+    h.tick && h.tick({ name: 'Krishna', state: 'ACTIVE', demo: false, activeToday: active, continuous: cont, stats: s }); }, 1000);
+  setTimeout(next, 2500);
+  const map = { water: 'water', snack: 'snacks' };
+  return { on: (c, f) => (h[c] = f), respond: () => setTimeout(next, 4000), log: id => s[map[id]]++, pause: () => {}, setIgnore: () => {} };
+})();
+
+const $ = s => document.querySelector(s);
+const buddy = $('#buddy'), flip = $('#flip'), card = $('#reminder'), stats = $('#stats'), bubble = $('#bubble');
+let BW = 112; const CARD_W = 300;
+
+// realistic sprite mode
+const CH = window.CHARACTER;
+const SPRITE = !!(CH && CH.poses && CH.poses.idle);
+const FALLBACK = { walk: ['walk', 'idle'], idle: ['idle'], happy: ['happy', 'idle'], cheer: ['cheer', 'happy', 'idle'],
+  drink: ['drink', 'remind', 'idle'], snack: ['snack', 'remind', 'idle'], meal: ['meal', 'snack', 'remind', 'idle'],
+  eyes: ['eyes', 'remind', 'idle'], posture: ['posture', 'idle'], wrist: ['wrist', 'remind', 'idle'],
+  stretch: ['stretch', 'cheer', 'idle'], breathe: ['breathe', 'happy', 'idle'], wave: ['wave', 'remind', 'idle'],
+  sleepy: ['sleepy', 'happy', 'idle'], sleep: ['sleep', 'idle'] };
+const PROP = { drink: '💧', snack: '🍪', meal: '🍛', eyes: '👀', wrist: '✋', stretch: '🙆', wave: '🚶', sleepy: '🌙', breathe: '🌬️', posture: '🧍' };
+const REMINDISH = ['drink', 'snack', 'meal', 'eyes', 'wrist', 'wave', 'sleepy', 'stretch', 'breathe', 'posture'];
+let facing = 1, spriteTimer = null;
+const sprite = document.getElementById('sprite');
+if (SPRITE) {
+  document.body.classList.add('img');
+  const h = CH.height || 210;
+  buddy.style.height = h + 'px';
+  buddy.style.width = Math.round(h * 0.8) + 'px';    // frames are 320x400
+  BW = Math.round(h * 0.8);
+  document.getElementById('bubble').style.bottom = Math.round(h * 0.84) + 'px';
+  Object.values(CH.poses).flat().forEach(f => { const i = new Image(); i.src = 'character/' + f; }); // preload
+}
+// ---- peek animations (upper body, from character/peek) ----
+const peekEl = document.getElementById('peek');
+const PEEK = SPRITE && CH.peek ? CH.peek : null;
+let peekTimer = null, peekMode = null;   // 'card' | 'away' | null
+if (PEEK) {
+  peekEl.style.height = (CH.peekHeight || 130) + 'px';
+  Object.entries(PEEK).forEach(([k, v]) => v.frames.forEach(n => { const i = new Image(); i.src = `character/peek/${k}${n}.webp`; }));
+}
+function startPeek(anim, mode) {
+  if (!PEEK || !PEEK[anim]) return false;
+  const { frames, fps } = PEEK[anim];
+  clearInterval(peekTimer);
+  let i = 0;
+  peekEl.src = `character/peek/${anim}${frames[0]}.webp`;
+  peekTimer = setInterval(() => { i = (i + 1) % frames.length; peekEl.src = `character/peek/${anim}${frames[i]}.webp`; }, 1000 / (fps || 1.2));
+  peekMode = mode;
+  peekEl.classList.toggle('away', mode === 'away');
+  requestAnimationFrame(() => peekEl.classList.add('show'));
+  buddy.classList.add('hidden');
+  bubble.classList.remove('show');
+  return true;
+}
+function stopPeek() {
+  if (!peekMode) return;
+  peekEl.classList.remove('show');
+  clearInterval(peekTimer); peekMode = null;
+  buddy.classList.remove('hidden');
+}
+function placePeek() {
+  if (!peekMode) return;
+  const ph = CH.peekHeight || 130, pw = peekEl.offsetWidth || ph * 2;
+  if (peekMode === 'card') {
+    const cl = parseFloat(card.style.left) || 0;
+    peekEl.style.left = (cl + CARD_W - pw * 0.78) + 'px';         // pops up over the card's right side
+    peekEl.style.bottom = (44 + card.offsetHeight - 10) + 'px';
+  } else {
+    peekEl.style.left = (x + BW / 2 - pw / 2) + 'px';              // dozing over the screen edge
+    peekEl.style.bottom = '-6px';
+  }
+}
+
+function showSprite(pose) {
+  const key = (FALLBACK[pose] || [pose, 'idle']).find(k => CH.poses[k]) || 'idle';
+  const frames = CH.poses[key];
+  clearInterval(spriteTimer);
+  let i = 0;
+  sprite.src = 'character/' + frames[0];
+  if (frames.length > 1) {
+    const fps = (CH.fps && CH.fps[key]) || 2;
+    spriteTimer = setInterval(() => { i = (i + 1) % frames.length; sprite.src = 'character/' + frames[i]; }, 1000 / fps);
+  }
+  buddy.classList.toggle('remindish', REMINDISH.includes(pose));
+  buddy.classList.toggle('framed', key === pose && frames.length > 2);   // real animation: no fake hop / badge
+  document.getElementById('prop').textContent = PROP[pose] || '';
+}
+const rand = (a, b) => a + Math.random() * (b - a);
+const fmt = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : m ? `${m} min` : `${s % 60}s`; };
+
+let NAME = '';
+let x = Math.max(20, innerWidth - 260), dir = -1, target = null, restUntil = performance.now() + 3000;
+// 'hidden' -> 'entering' (walks in from a screen edge) -> 'here' -> 'leaving' (walks off the edge) -> 'hidden'
+let phase = window.deskBuddy ? 'hidden' : 'here', goal = null, pendingCard = null;
+const EDGE_SPEED = 120;   // px/s when walking in / out
+let userState = 'ACTIVE', current = null, actUntil = 0, lastTick = null;
+
+const setPose = p => { if (buddy.dataset.pose !== p) { buddy.dataset.pose = p; if (SPRITE) showSprite(p); } };
+if (SPRITE) showSprite('idle');
+const busy = () => current || stats.classList.contains('show') || performance.now() < actUntil;
+function act(pose, ms) { if (phase !== 'here') return; setPose(pose); actUntil = performance.now() + ms; target = null; }
+function hearts() { const el = $('.hearts'); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); }
+
+function placeCards() {
+  const leftSide = x + BW / 2 > CARD_W + 40;
+  const cx = leftSide ? x - CARD_W + 4 : x + BW - 4;
+  card.style.left = stats.style.left = Math.max(8, Math.min(innerWidth - CARD_W - 8, cx)) + 'px';
+  bubble.style.left = Math.max(8, Math.min(innerWidth - bubble.offsetWidth - 8, x + 24)) + 'px';
+}
+
+let last = performance.now();
+function loop(t) {
+  const dt = Math.min(0.05, (t - last) / 1000); last = t;
+  if (phase === 'entering' || phase === 'leaving') {
+    const step = EDGE_SPEED * dt * Math.sign(goal - x);
+    dir = Math.sign(goal - x) || dir;
+    if (Math.abs(goal - x) <= Math.abs(step)) {
+      x = goal;
+      if (phase === 'leaving') { phase = 'hidden'; setPose('idle'); api.walkedOff && api.walkedOff(); }
+      else {
+        phase = 'here'; target = null; restUntil = t + rand(4000, 9000); setPose('idle');
+        if (pendingCard) { const r = pendingCard; pendingCard = null; showCard(r); }
+        else if (!stats.classList.contains('show')) act('wave', 1500);
+      }
+    } else { x += step; setPose('walk'); }
+  } else if (phase === 'hidden') {
+    // off screen, waiting for main to call him in
+  } else if (!busy()) {
+    if (userState === 'AWAY') { setPose('sleep'); target = null; if (peekMode !== 'away') startPeek('sleep', 'away'); }
+    else if (peekMode === 'away') stopPeek();
+    else if (target !== null) {
+      const step = 42 * dt * Math.sign(target - x);
+      dir = Math.sign(target - x) || dir;
+      if (Math.abs(target - x) <= Math.abs(step)) {
+        x = target; target = null; restUntil = t + rand(5000, 14000); setPose('idle');
+        const r = Math.random(); if (r < 0.12) act('wave', 1800); else if (r < 0.24) act('stretch', 2400);
+      } else { x += step; setPose('walk'); }
+    } else if (t > restUntil) {
+      target = rand(20, innerWidth - BW - 20);
+      if (Math.abs(target - x) < 80) { target = null; restUntil = t + 2000; }
+    } else setPose('idle');
+  }
+  buddy.style.transform = `translateX(${x}px)`;
+  if (SPRITE) {
+    // frames face right: face the walking direction, or the card while reminding
+    if (buddy.dataset.pose === 'walk') facing = dir;
+    else if (current || stats.classList.contains('show')) facing = (x + BW / 2 > CARD_W + 40) ? -1 : 1;
+    flip.style.transform = `scaleX(${facing})`;
+    const attn = document.getElementById('attn'), prop = document.getElementById('prop');
+    attn.style.left = facing > 0 ? (BW * 0.66) + 'px' : (BW * 0.34 - 34) + 'px';
+    attn.style.top = (CH.height * 0.16) + 'px';
+    attn.style.transform = facing > 0 ? '' : 'scaleX(-1)';
+    prop.style.left = facing > 0 ? (BW * 0.8) + 'px' : (BW * 0.2 - 40) + 'px';
+  } else flip.style.transform = `scaleX(${buddy.dataset.pose === 'walk' ? -dir : 1})`;
+  placeCards();
+  placePeek();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---- click-through: only the buddy and the cards catch the mouse ----
+let ignoring = true;
+const release = () => { ignoring = true; api.setIgnore(true); };
+document.addEventListener('mousemove', e => {
+  const over = !!e.target.closest('.hit');
+  if (over === ignoring) { ignoring = !over; api.setIgnore(!over); }
+});
+
+// ---- reminders ----
+// ---- walking in / off the screen edge ----
+api.on('enter', () => {
+  if (phase === 'hidden') {   // start just outside the left or right edge
+    const fromLeft = Math.random() < 0.5;
+    x = fromLeft ? -BW - 10 : innerWidth + 10;
+    goal = fromLeft ? rand(60, Math.min(360, innerWidth / 3)) : innerWidth - BW - rand(60, Math.min(360, innerWidth / 3));
+  } else if (phase === 'leaving') {
+    goal = Math.max(40, Math.min(innerWidth - BW - 40, x + (x < innerWidth / 2 ? 200 : -200)));
+  } else return;
+  phase = 'entering'; stopPeek();
+});
+api.on('leave', () => {
+  if (phase === 'hidden') { api.walkedOff && api.walkedOff(); return; }
+  stats.classList.remove('show'); bubble.classList.remove('show'); stopPeek();
+  actUntil = 0; target = null;
+  goal = x + BW / 2 < innerWidth / 2 ? -BW - 20 : innerWidth + 20;   // nearest edge
+  phase = 'leaving'; release();
+});
+
+api.on('reminder', r => {
+  r.receivedAt = performance.now();
+  if (phase !== 'here') { pendingCard = r; return; }   // show it once he has walked in
+  showCard(r);
+});
+function showCard(r) {
+  current = r; stats.classList.remove('show'); target = null;
+  $('#r-title').textContent = r.title; $('#r-sub').textContent = r.sub; $('#r-yes').textContent = r.yes;
+  const sn = r.snooze || 15;
+  $('#r-snooze').textContent = r.id === 'bedtime' ? `${sn} more min` : `Snooze ${sn}m`;
+  setPose(r.anim);
+  const bar = $('#r-timer'); bar.classList.remove('run'); void bar.offsetWidth;
+  bar.style.animationDuration = ((lastTick && lastTick.cardSec) || 45) + 's'; bar.classList.add('run');
+  card.classList.add('show');
+  startPeek(r.anim, 'card');
+  api.cardShown && api.cardShown();
+}
+const CHEERS = { water: 'Hydrated! 💧', snack: 'Yum! 🍎', lunch: 'Enjoy your meal 😋', dinner: 'Enjoy your meal 😋',
+  walk: 'See you soon! 🚶', breathe: 'Nice and calm 🌿', posture: 'Looking sharp! 💪', bedtime: 'Good night, ' };
+function closeCard(action) {
+  if (!current) return;
+  api.respond(current.id, action);
+  card.classList.remove('show');
+  stopPeek();
+  if (action === 'done') { act('cheer', 1600); hearts(); const c = CHEERS[current.id]; if (c) say(c === 'Good night, ' ? c + NAME + ' 🌙' : c, 2500); }
+  else act('idle', 800);
+  current = null;
+  release();
+}
+$('#r-yes').onclick = () => closeCard('done');
+$('#r-snooze').onclick = () => closeCard('snooze');
+api.on('hide-card', () => { pendingCard = null; if (!current) return; card.classList.remove('show'); current = null; stopPeek(); act('wave', 2500); release(); });
+
+// ---- speech bubble ----
+let bubbleTimer;
+function say(text, ms = 4000) {
+  bubble.textContent = text; bubble.classList.add('show');
+  clearTimeout(bubbleTimer); bubbleTimer = setTimeout(() => bubble.classList.remove('show'), ms);
+}
+api.on('welcome', ({ away }) => { act('wave', 2000); say(`Welcome back, ${NAME}! Nice ${away} break 🌿`); });
+api.on('cheer', text => { act('cheer', 1600); hearts(); say(text || 'Nice! ✨', 2500); });
+// companion hours: main process says when the day starts and ends
+api.on('greet', text => setTimeout(() => { act('wave', 2500); say(text, 6000); }, 400));
+api.on('say', text => say(text, 3000));
+api.on('bye', text => { if (current) return; stats.classList.remove('show'); act('wave', 5000); say(text, 5500); });
+
+// ---- stats ----
+function toggleStats(force) {
+  if (current) return;
+  const showIt = force ?? !stats.classList.contains('show');
+  stats.classList.toggle('show', showIt);
+  target = null; setPose('idle');
+  if (lastTick) renderStats(lastTick);
+}
+$('#buddy svg').addEventListener('click', () => toggleStats());
+sprite.addEventListener('click', () => toggleStats());
+api.on('show-stats', () => toggleStats(true));
+$('#s-close').onclick = () => { toggleStats(false); release(); api.statsClosed && api.statsClosed(); };
+$('#s-pause').onclick = () => { api.pause(60); toggleStats(false); say('Okay, quiet for an hour 🤫'); release(); api.statsClosed && api.statsClosed(); };
+
+let GOAL = 8;
+const CHIPS = [['eyeRests', '👀 Eye rests'], ['posture', '🧍 Posture'], ['wrist', '✋ Hands'],
+  ['stretches', '🙆 Stretches'], ['breaths', '🌬️ Breathing'], ['walks', '🚶 Walks'],
+  ['snacks', '🍎 Snacks'], ['meals', '🍛 Meals'], ['breaks', '☕ Breaks']];
+function renderStats(t) {
+  const s = t.stats;
+  $('#s-title').textContent = `${NAME}'s day`;
+  $('#s-total').textContent = fmt(t.activeToday);
+  $('#s-cap').textContent = `screen time today · this session ${fmt(t.continuous)} · longest ${fmt(s.longestSession || 0)}`;
+  $('#s-chips').innerHTML = CHIPS.map(([k, label]) => `<div class="chip"><b>${s[k] || 0}</b>${label}</div>`).join('');
+  $('#s-water').innerHTML = Array.from({ length: GOAL }, (_, i) => `<span class="drop ${i < s.water ? 'full' : ''}">💧</span>`).join('') +
+    `<button class="ghost" id="s-addw">+ water</button><button class="ghost" id="s-adds">+ snack</button>`;
+  $('#s-addw').onclick = () => { api.log('water'); s.water++; renderStats(t); hearts(); };
+  $('#s-adds').onclick = () => { api.log('snack'); s.snacks++; renderStats(t); hearts(); };
+  const mood = buddy.dataset.mood;
+  $('#s-mood').textContent = (mood === 'tired' ? 'Getting tired… a break would be nice 😪'
+    : mood === 'thirsty' ? "A little thirsty. Water time? 🥤" : 'Feeling fresh and happy 😊') + `  ·  ${s.water}/${GOAL} glasses`;
+}
+
+// ---- live ticks from the main process ----
+api.on('tick', t => {
+  lastTick = t; userState = t.state;
+  if (t.name) NAME = t.name;
+  if (t.goal) GOAL = t.goal;
+  const MIN = t.demo ? 2 : 60;
+  const expected = t.waterEvery ? Math.floor(t.activeToday / (t.waterEvery * MIN)) : 0;
+  buddy.dataset.mood = t.continuous > 90 * MIN ? 'tired' : t.stats.water < expected - 1 ? 'thirsty' : 'happy';
+  if (stats.classList.contains('show')) renderStats(t);
+});
+
+addEventListener('resize', () => { x = Math.min(x, innerWidth - BW - 10); });
+</script>
+</body>
+</html>
