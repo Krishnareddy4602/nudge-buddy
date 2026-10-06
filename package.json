@@ -45,7 +45,8 @@
       "category": "public.app-category.healthcare-fitness",
       "icon": "build/icon.png",
       "identity": "-",
-      "artifactName": "NudgeBuddy-${version}-mac.${ext}"
+      "artifactName": "NudgeBuddy-${version}-mac.${ext}",
+      "hardenedRuntime": false
     },
     "win": {
       "target": [
