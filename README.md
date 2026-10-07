@@ -32,6 +32,7 @@ Your answers are saved, so it starts straight away next time. Change them any ti
 | 10 reminders | 💧 Water 45m · 👀 Eye rest 20m · 🧍 Posture 30m · ✋ Hands/wrists 40m · 🙆 Stretch 60m · 🌬️ Deep breaths 75m · 🚶 Walk 90m · 🍎 Snack 150m · 🍛 Lunch (1–3 PM) & dinner (8–10 PM) · 🌙 Bedtime after 11 PM |
 | Personal | Every message uses the name you enter in the setup window |
 | Reminder hours | Reminders run only between your start and end time on the days you pick (night shifts across midnight work too). Timers restart at your start time each day. Meal and bedtime reminders still pop up at their own times |
+| Daily tasks | When your hours start, the buddy asks "What do you need to do today?" and keeps a to-do list. Every 2 hours (you choose) he checks in so you can tick tasks off; no check-in when nothing is left. Unfinished tasks carry over to the next morning, and the end-of-day goodbye tells you how many you finished. Tray → **My tasks** opens the list any time |
 | Reset | Tray → Reset: restart reminder timers from now · reset today's stats · reset everything and set up again. The setup window also has **Reset to defaults** |
 | Smart delivery | Hidden until a reminder is due; timers pause while you're away or the screen is locked; one card at a time, short gap between cards, snooze time is up to you |
 | Mini-Krishna animations | Walks around, drinks from a steel bottle, eats a biscuit, holds a lunch plate, shades eyes, hands on hips for posture, rolls wrists, breathes, yawns, sleeps when you're away, cheers when you tap yes |
