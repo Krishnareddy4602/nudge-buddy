@@ -28,6 +28,19 @@ jobs:
       - name: Build Windows app
         if: runner.os == 'Windows'
         run: npx electron-builder --win --publish never
+      # Older Macs: Electron 38+ needs macOS 12+, so also build one on Electron 37 (runs on macOS 11 Big Sur and up).
+      - name: Build Mac app for older macOS (11 Big Sur+)
+        if: runner.os == 'macOS'
+        run: |
+          rm -rf dist/mac-universal
+          npm install --no-save electron@37
+          EV=$(node -p "require('electron/package.json').version")
+          echo "Using Electron $EV"
+          npx electron-builder --mac --publish never -c.electronVersion=$EV -c.mac.artifactName='NudgeBuddy-${version}-mac-older-macOS-11.${ext}'
+          echo "Minimum macOS of the older build:"
+          /usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "dist/mac-universal/Nudge Buddy.app/Contents/Info.plist"
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
       - uses: actions/upload-artifact@v4
         with:
           name: NudgeBuddy-${{ runner.os }}
