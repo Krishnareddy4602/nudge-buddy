@@ -55,8 +55,8 @@ npm run dist       # .dmg on Mac, .exe on Windows, AppImage on Linux (in the dis
 ```
 
 On Windows you get two files in `dist/`:
-- `Nudge Buddy Setup 1.3.1.exe`: an installer with Start-menu and desktop shortcuts
-- `NudgeBuddy-Portable-1.3.1.exe`: a single file you double-click to run, no install needed
+- `Nudge Buddy Setup 1.4.0.exe`: an installer with Start-menu and desktop shortcuts
+- `NudgeBuddy-Portable-1.4.0.exe`: a single file you double-click to run, no install needed
 
 If you build from VS Code's terminal and it fails with "Cannot find module 'electron'", run
 `$env:ELECTRON_RUN_AS_NODE=$null` (PowerShell) first.

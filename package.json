@@ -1,6 +1,6 @@
 {
   "name": "nudge-buddy",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "Nudge Buddy: a mini cartoon companion that pops up to remind you to drink water, rest your eyes, stretch, walk, eat and sleep on time.",
   "main": "main.js",
   "scripts": {

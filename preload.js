@@ -12,4 +12,7 @@ contextBridge.exposeInMainWorld('deskBuddy', {
   statsClosed: () => ipcRenderer.send('stats-closed'),
   cardShown: () => ipcRenderer.send('card-shown'),
   walkedOff: () => ipcRenderer.send('walked-off'),
+  setTasks: items => ipcRenderer.send('tasks:set', items),
+  touch: () => ipcRenderer.send('card-touch'),
+  focusMe: () => ipcRenderer.send('focus-me'),
 });

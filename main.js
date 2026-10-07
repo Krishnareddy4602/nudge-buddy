@@ -59,6 +59,7 @@ const DEFAULTS = {
   lunch:  { on: true, from: '13:00', to: '15:00' },
   dinner: { on: true, from: '20:00', to: '22:00' },
   bedtime: { on: true, at: '23:00' },
+  tasks: { on: true, every: 120 },   // morning plan + task check-ins
   idleMin: 2, awayMin: 5, snoozeMin: 15, cardSec: 45, waterGoal: 8, startAtLogin: true,
 };
 const settingsFile = () => path.join(app.getPath('userData'), 'desk-buddy-settings.json');
@@ -80,6 +81,7 @@ function normalize(s) {
     lunch: win(s.lunch, D.lunch),
     dinner: win(s.dinner, D.dinner),
     bedtime: { on: s.bedtime?.on !== false, at: time(s.bedtime?.at, D.bedtime.at) },
+    tasks: { on: s.tasks?.on !== false, every: num(s.tasks?.every, 15, 480, D.tasks.every) },
     idleMin: num(s.idleMin, 1, 60, D.idleMin),
     awayMin: num(s.awayMin, 2, 120, D.awayMin),
     snoozeMin: num(s.snoozeMin, 1, 120, D.snoozeMin),
@@ -161,6 +163,39 @@ function day() {
   return db[d];
 }
 
+// ---------- daily task list ----------
+// { date: day the list was planned, items: [{ id, text, done, carried }] }
+const tasksFile = () => path.join(app.getPath('userData'), 'nudge-buddy-tasks.json');
+let tasks = { date: '', items: [] };
+function loadTasks() { try { const t = JSON.parse(fs.readFileSync(tasksFile(), 'utf8')); if (Array.isArray(t.items)) tasks = t; } catch {} }
+function saveTasks() { try { fs.writeFileSync(tasksFile(), JSON.stringify(tasks, null, 2)); } catch {} }
+const pendingTasks = () => tasks.items.filter(t => !t.done);
+const taskCount = () => `${tasks.items.filter(t => t.done).length}/${tasks.items.length}`;
+// New day: start a fresh list, carrying over whatever wasn't finished last time.
+function startTodayList() {
+  if (tasks.date === today()) return;
+  tasks = { date: today(), items: pendingTasks().map(t => ({ ...t, carried: true })) };
+  saveTasks();
+}
+function cleanTasks(items) {
+  if (!Array.isArray(items)) return [];
+  return items.slice(0, 30).map((t, i) => ({ id: String(t.id || Date.now() + i).slice(0, 40),
+    text: String(t.text || '').trim().slice(0, 80), done: !!t.done, carried: !!t.carried })).filter(t => t.text);
+}
+function planCard(edit) {
+  const n = tasks.items.filter(t => t.carried).length;
+  return { id: 'plan', kind: 'tasks', anim: 'remind', yes: edit ? 'Save' : 'Start my day', later: 'Later', sec: 120,
+    title: edit ? 'Your tasks for today 📝' : 'Good morning, {name}! ☀️ What do you need to do today?',
+    sub: edit ? 'Tick what you finished, or add new tasks.'
+      : `Add your tasks. I'll check in every ${fmt(cfg.tasks.every * 60)} to see how it's going.${n ? ` ${n} unfinished task${n > 1 ? 's' : ''} from last time ${n > 1 ? 'are' : 'is'} already on the list.` : ''}` };
+}
+function checkInCard() {
+  const left = pendingTasks().length, total = tasks.items.length;
+  return { id: 'tasks', kind: 'tasks', anim: 'remind', yes: 'Update', sec: 60,
+    title: 'Task check-in, {name} ✅',
+    sub: `${total - left} of ${total} done. Tick what you've finished since last time.` };
+}
+
 // ---------- runtime state ----------
 let win, tray, setupWin, started = false, rendererReady = false;
 let configured = false;      // settings saved (false again after "Reset everything")
@@ -176,6 +211,9 @@ let lastBedtime = 0;
 let duty = null;             // companion on duty (inside the user's hours)?
 let visibleUntil = 0;        // keep the window up briefly (greeting, cheer, goodbye, "show my day")
 let leaving = 0;            // when the buddy started walking off screen (0 = not leaving)
+let planPending = false;     // ask "what do you need to do today?" at the next chance
+let taskLeft = 0;           // seconds until the next task check-in
+let cardSecNow = 45;        // time limit of the open card
 
 const send = (ch, data) => win && !win.isDestroyed() && win.webContents.send(ch, data);
 const fmt = s => { s = Math.round(s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
@@ -186,7 +224,9 @@ const popUp = (ms, text) => { visibleUntil = Math.max(visibleUntil, Date.now() +
 function show(r) {
   cardOpen = r.id;
   cardShownAt = Date.now() + 8000;   // grace while he walks in; reset by 'card-shown'
-  send('reminder', { id: r.id, title: fill(r.title), sub: fill(r.sub), yes: r.yes, anim: r.anim, snooze: cfg.snoozeMin });
+  cardSecNow = r.sec || cfg.cardSec;
+  send('reminder', { id: r.id, title: fill(r.title), sub: fill(r.sub), yes: r.yes, anim: r.anim, snooze: cfg.snoozeMin,
+    sec: cardSecNow, later: r.later, tasks: r.kind === 'tasks' ? tasks.items : null });
   updateVisibility();
 }
 function bedtimeCard(sub) {
@@ -196,6 +236,7 @@ function bedtimeCard(sub) {
 // Every interval timer starts again from now (used on save, at the start of the day, and from the tray).
 function resetTimers() {
   for (const r of RULES) left[r.id] = r.every * MIN;
+  taskLeft = cfg.tasks.every * MIN;
   continuous = 0;
   cooldown = 0;
 }
@@ -215,8 +256,18 @@ function pickDue(d) {
   // 2. meals (once per day, inside their window — these come even outside companion hours)
   const meal = MEALS.find(m => inWindow(m.from, m.to) && !d.firedMeals.includes(m.id));
   if (meal) { d.firedMeals.push(meal.id); return meal; }
-  // 3. interval reminders (only while on duty)
-  return duty ? RULES.find(r => left[r.id] === 0) : null;
+  if (!duty) return null;
+  // 3. morning plan: what do you need to do today?
+  if (planPending && cfg.tasks.on) { planPending = false; startTodayList(); return planCard(false); }
+  // 4. interval reminders
+  const rule = RULES.find(r => left[r.id] === 0);
+  if (rule) return rule;
+  // 5. task check-in (skipped when nothing is left to do)
+  if (cfg.tasks.on && taskLeft === 0) {
+    if (tasks.date === today() && pendingTasks().length) return checkInCard();
+    taskLeft = cfg.tasks.every * MIN;
+  }
+  return null;
 }
 
 function updateDuty() {
@@ -226,13 +277,18 @@ function updateDuty() {
   duty = nowDuty;
   if (duty) {
     resetTimers();   // fresh start: count every reminder from now
-    send('greet', `${first ? 'Hey' : 'Good to see you,'} ${N}! ${nextReminderText()} 👋`);
+    if (cfg.tasks.on && tasks.date !== today()) planPending = true;
+    send('greet', `${first ? 'Hey' : 'Good morning,'} ${N}! ${planPending ? "Let's plan your day 📝" : nextReminderText() + ' 👋'}`);
     popUp(7000);
   } else {
     if (cardOpen && RULES.find(r => r.id === cardOpen)) { send('hide-card'); cardOpen = null; }
     const next = nextStartText();
     if (first) { if (next) { send('greet', `All set, ${N}! See you ${next} 👋`); popUp(6000); } }
-    else { send('bye', `That's it for today, ${N}! See you ${next || 'soon'} 👋`); popUp(6000); }
+    else {
+      const done = tasks.items.filter(t => t.done).length, total = tasks.items.length;
+      const sum = tasks.date === today() && total ? ` You finished ${done} of ${total} tasks${done === total ? ' 🎉' : ''}.` : '';
+      send('bye', `That's it for today, ${N}!${sum} See you ${next || 'soon'} 👋`); popUp(7000);
+    }
   }
   buildTray();
 }
@@ -282,22 +338,29 @@ function tick() {
   // Timers run by the clock while you're at the computer (not while away / locked).
   const running = Date.now() > pausedUntil;
   if (userState !== 'AWAY') {
-    if (running && duty && !cardOpen) for (const r of RULES) left[r.id] = Math.max(0, left[r.id] - 1);
+    if (running && duty && !cardOpen) {
+      for (const r of RULES) left[r.id] = Math.max(0, left[r.id] - 1);
+      taskLeft = Math.max(0, taskLeft - 1);
+    }
+    // reminders on all day: a new date means a new morning plan
+    if (duty && !cfg.hours.on && cfg.tasks.on && tasks.date !== today() && cardOpen !== 'plan') planPending = true;
     if (cooldown > 0) cooldown--;
     if (running && !cardOpen && cooldown === 0) { const r = pickDue(d); if (r) show(r); }
   }
   // No answer within the time limit: the buddy leaves and asks again after the snooze time.
-  if (cardOpen && Date.now() - cardShownAt >= cfg.cardSec * 1000) {
+  if (cardOpen && Date.now() - cardShownAt >= cardSecNow * 1000) {
     const id = cardOpen;
     send('hide-card');
     respond(id, 'missed');
-    popUp(3000, `I'll ask again in ${cfg.snoozeMin} min 👋`);
+    popUp(3000, id === 'plan' ? 'No problem! Add tasks any time from the tray 📝' : `I'll ask again in ${cfg.snoozeMin} min 👋`);
   }
 
   updateVisibility();
   if (d.activeSec % 30 === 0) saveDb();
   send('tick', { name: N, state: userState, paused: Date.now() < pausedUntil, demo: DEMO, duty,
     activeToday: d.activeSec, continuous, stats: d, cardSec: cfg.cardSec,
+    tasksDone: tasks.date === today() ? tasks.items.filter(t => t.done).length : 0,
+    tasksTotal: tasks.date === today() ? tasks.items.length : 0,
     goal: cfg.waterGoal, waterEvery: cfg.reminders.water.on ? cfg.reminders.water.every : 0, snooze: cfg.snoozeMin });
 }
 
@@ -311,7 +374,10 @@ function complete(id) {
 
 // action: 'done' | 'snooze' | 'missed' (no answer in time — handled like a snooze)
 function respond(id, action) {
-  if (action === 'done') complete(id);
+  if (id === 'plan' || id === 'tasks') {
+    // after planning or a check-in, the next check-in is a full interval away (or the snooze time)
+    taskLeft = (action === 'done' || id === 'plan' ? cfg.tasks.every : cfg.snoozeMin) * MIN;
+  } else if (action === 'done') complete(id);
   else {
     const snooze = cfg.snoozeMin;
     if (action === 'snooze') day().snoozes++;
@@ -333,6 +399,9 @@ ipcMain.on('pause', (_e, minutes) => { pausedUntil = minutes ? Date.now() + minu
 ipcMain.on('set-ignore', (_e, ignore) => win && win.setIgnoreMouseEvents(ignore, { forward: true }));
 ipcMain.on('stats-closed', () => { visibleUntil = Date.now() + 1500; });
 ipcMain.on('card-shown', () => { if (cardOpen) cardShownAt = Date.now(); });
+ipcMain.on('card-touch', () => { if (cardOpen) cardShownAt = Date.now(); });   // typing / ticking keeps the card open
+ipcMain.on('focus-me', () => { if (win && !win.isDestroyed()) win.focus(); });   // so you can type a task
+ipcMain.on('tasks:set', (_e, items) => { startTodayList(); tasks.items = cleanTasks(items); saveTasks(); buildTray(); });
 ipcMain.on('walked-off', () => { if (leaving && win && !win.isDestroyed()) { win.hide(); leaving = 0; } });
 
 // ---------- reset ----------
@@ -345,10 +414,11 @@ async function resetEverything() {
   const { response } = await dialog.showMessageBox({
     type: 'warning', buttons: ['Reset everything', 'Cancel'], defaultId: 1, cancelId: 1,
     title: APP_NAME, message: `Reset ${APP_NAME}?`,
-    detail: 'This deletes your name, hours, reminder timings and all saved stats, then opens the setup again.',
+    detail: 'This deletes your name, hours, reminder timings, task list and all saved stats, then opens the setup again.',
   });
   if (response !== 0) return;
-  try { fs.rmSync(settingsFile(), { force: true }); fs.rmSync(statsFile(), { force: true }); } catch {}
+  try { fs.rmSync(settingsFile(), { force: true }); fs.rmSync(statsFile(), { force: true }); fs.rmSync(tasksFile(), { force: true }); } catch {}
+  tasks = { date: '', items: [] }; planPending = false;
   db = {};
   configured = false;
   cardOpen = null; duty = null; pausedUntil = 0; visibleUntil = 0;
@@ -443,6 +513,8 @@ function buildTray() {
     { label: hoursText, enabled: false },
     { type: 'separator' },
     { label: 'Show my day', click: () => { popUp(60000); send('show-stats'); } },
+    { label: tasks.date === today() && tasks.items.length ? `My tasks (${taskCount()} done)…` : 'Plan my tasks…',
+      enabled: configured, click: () => { if (cardOpen) return; startTodayList(); planPending = false; show(planCard(tasks.items.length > 0)); } },
     { label: 'I drank a glass of water 💧', click: () => { complete('water'); saveDb(); send('cheer', 'Hydrated! 💧'); } },
     { label: 'I ate a snack 🍎', click: () => { complete('snack'); saveDb(); send('cheer', 'Yum! 🍎'); } },
     { type: 'separator' },
@@ -518,6 +590,7 @@ app.whenReady().then(() => {
   if (process.platform === 'darwin' && app.dock) app.dock.hide();
   setJumpList();
   loadDb();
+  loadTasks();
   const saved = process.argv.includes('--setup') ? null : loadSettings();
   if (saved) { applySettings(saved); configured = true; startBuddy(); }
   else openSettings();   // first launch: ask for name, hours and timings

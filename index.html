@@ -128,6 +128,24 @@
   .timer i { display: block; height: 100%; background: #bbb; transform-origin: left; }
   .timer i.run { animation: drain linear forwards; }
   @keyframes drain { to { transform: scaleX(0); } }
+
+  /* task list inside the card (morning plan + check-ins) */
+  .tasks { display: none; margin: -4px 0 12px; }
+  .card.has-tasks .tasks { display: block; }
+  .tasks ul { list-style: none; margin: 0 0 8px; padding: 0; max-height: 132px; overflow-y: auto; }
+  .tasks li { display: flex; align-items: center; gap: 8px; padding: 5px 2px; border-bottom: 1px solid #f0f0f2; font-size: 12.5px; }
+  .tasks li label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; min-width: 0; }
+  .tasks li span { overflow-wrap: anywhere; }
+  .tasks li.done span { text-decoration: line-through; color: var(--muted); }
+  .tasks li em { font-style: normal; font-size: 10px; color: #b07a12; background: #fff4dc; border-radius: 6px; padding: 1px 5px; margin-left: 4px; }
+  .tasks li.empty { color: var(--muted); border: 0; }
+  .tasks input[type=checkbox] { width: 15px; height: 15px; margin: 0; accent-color: #111; flex: none; }
+  .tasks .x { flex: none; background: none; color: #aaa; padding: 0 4px; font-size: 15px; line-height: 1; }
+  .tasks .x:hover { color: #c62828; }
+  .tasks .add { display: flex; gap: 6px; }
+  .tasks .add input { flex: 1; min-width: 0; font: inherit; font-size: 12.5px; border: 1px solid #d2d2d7; border-radius: 9px; padding: 7px 9px; }
+  .tasks .add input:focus { outline: 2px solid #0071e3; outline-offset: -1px; border-color: transparent; }
+  .tasks .add button { flex: none; padding: 7px 12px; }
   .row { display: flex; gap: 10px; }
   button { flex: 1; border: 0; border-radius: 10px; padding: 9px 10px; font-family: inherit; font-size: 12px; font-weight: 600;
     cursor: pointer; transition: transform .1s, background .15s; }
@@ -353,6 +371,10 @@
 <div id="reminder" class="card hit">
   <h3 id="r-title">Drink water right now</h3>
   <p id="r-sub">A tiny reminder from your future self 💧</p>
+  <div class="tasks">
+    <ul id="r-list"></ul>
+    <div class="add"><input id="r-new" maxlength="80" placeholder="Add a task and press Enter"><button class="ghost" id="r-add">Add</button></div>
+  </div>
   <div class="row">
     <button class="primary" id="r-yes">Yes, I drank</button>
     <button class="ghost" id="r-snooze">Snooze 15m</button>
@@ -592,15 +614,61 @@ function showCard(r) {
   current = r; stats.classList.remove('show'); target = null;
   $('#r-title').textContent = r.title; $('#r-sub').textContent = r.sub; $('#r-yes').textContent = r.yes;
   const sn = r.snooze || 15;
-  $('#r-snooze').textContent = r.id === 'bedtime' ? `${sn} more min` : `Snooze ${sn}m`;
+  $('#r-snooze').textContent = r.later || (r.id === 'bedtime' ? `${sn} more min` : `Snooze ${sn}m`);
+  card.classList.toggle('has-tasks', !!r.tasks);
+  if (r.tasks) { taskItems = r.tasks.map(t => ({ ...t })); renderTasks(); $('#r-new').value = ''; }
   setPose(r.anim);
-  const bar = $('#r-timer'); bar.classList.remove('run'); void bar.offsetWidth;
-  bar.style.animationDuration = ((lastTick && lastTick.cardSec) || 45) + 's'; bar.classList.add('run');
+  restartBar(r.sec || (lastTick && lastTick.cardSec) || 45);
   card.classList.add('show');
   startPeek(r.anim, 'card');
   api.cardShown && api.cardShown();
 }
-const CHEERS = { water: 'Hydrated! 💧', snack: 'Yum! 🍎', lunch: 'Enjoy your meal 😋', dinner: 'Enjoy your meal 😋',
+function restartBar(sec) {
+  const bar = $('#r-timer'); bar.classList.remove('run'); void bar.offsetWidth;
+  bar.style.animationDuration = sec + 's'; bar.classList.add('run');
+}
+
+// ---- task list (morning plan + check-ins) ----
+let taskItems = [];
+function renderTasks() {
+  const list = $('#r-list');
+  list.innerHTML = '';
+  if (!taskItems.length) list.innerHTML = '<li class="empty">No tasks yet. Add your first one below 👇</li>';
+  taskItems.forEach((t, i) => {
+    const li = document.createElement('li');
+    li.className = t.done ? 'done' : '';
+    li.innerHTML = `<label><input type="checkbox" ${t.done ? 'checked' : ''}><span></span></label><button class="x" title="Remove">×</button>`;
+    li.querySelector('span').textContent = t.text;
+    if (t.carried && !t.done) li.querySelector('span').insertAdjacentHTML('beforeend', '<em>from yesterday</em>');
+    li.querySelector('input').onchange = e => { t.done = e.target.checked; tasksChanged(); };
+    li.querySelector('.x').onclick = () => { taskItems.splice(i, 1); tasksChanged(); };
+    list.appendChild(li);
+  });
+  if (current && current.id === 'tasks') {
+    const done = taskItems.filter(t => t.done).length;
+    $('#r-sub').textContent = `${done} of ${taskItems.length} done. Tick what you've finished since last time.`;
+  }
+}
+function tasksChanged() {
+  renderTasks();
+  api.setTasks && api.setTasks(taskItems);
+  touchCard();
+}
+function touchCard() { api.touch && api.touch(); if (current) restartBar(current.sec || 60); }
+function addTask() {
+  const input = $('#r-new'), text = input.value.trim();
+  if (!text) return;
+  taskItems.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 6), text, done: false });
+  input.value = '';
+  tasksChanged();
+  $('#r-list').scrollTop = 1e6;
+  input.focus();
+}
+$('#r-add').onclick = addTask;
+$('#r-new').addEventListener('keydown', e => { if (e.key === 'Enter') addTask(); else touchCard(); });
+$('#r-new').addEventListener('mousedown', () => api.focusMe && api.focusMe());
+
+const CHEERS = { plan: "Let's make it a great day! 💪", tasks: 'Great progress! ✅', water: 'Hydrated! 💧', snack: 'Yum! 🍎', lunch: 'Enjoy your meal 😋', dinner: 'Enjoy your meal 😋',
   walk: 'See you soon! 🚶', breathe: 'Nice and calm 🌿', posture: 'Looking sharp! 💪', bedtime: 'Good night, ' };
 function closeCard(action) {
   if (!current) return;
@@ -659,7 +727,8 @@ function renderStats(t) {
   $('#s-adds').onclick = () => { api.log('snack'); s.snacks++; renderStats(t); hearts(); };
   const mood = buddy.dataset.mood;
   $('#s-mood').textContent = (mood === 'tired' ? 'Getting tired… a break would be nice 😪'
-    : mood === 'thirsty' ? "A little thirsty. Water time? 🥤" : 'Feeling fresh and happy 😊') + `  ·  ${s.water}/${GOAL} glasses`;
+    : mood === 'thirsty' ? "A little thirsty. Water time? 🥤" : 'Feeling fresh and happy 😊') + `  ·  ${s.water}/${GOAL} glasses`
+    + (t.tasksTotal ? `  ·  ✅ ${t.tasksDone}/${t.tasksTotal} tasks` : '');
 }
 
 // ---- live ticks from the main process ----

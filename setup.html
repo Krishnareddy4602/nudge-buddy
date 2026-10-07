@@ -103,6 +103,14 @@
   </section>
 
   <section>
+    <h2>Daily tasks</h2>
+    <p class="hint">Each morning, when your hours start, the buddy asks what you need to do today and keeps a list.
+      Then he checks in on your tasks, so you can tick off what's done. Unfinished tasks carry over to the next day.</p>
+    <div class="field" id="f-tasks"><label><input type="checkbox" id="tasksOn"> 📝 Morning plan &amp; task check-ins</label>
+      <span class="ctl">check in every <input type="number" id="tasksEvery" min="15" max="480"> min</span></div>
+  </section>
+
+  <section>
     <h2>Other conditions</h2>
     <div class="row2">
       <div class="field"><span>Idle after no input for</span><span class="ctl"><input type="number" id="idleMin" min="1" max="60"> min</span></div>
@@ -164,6 +172,7 @@ function fillForm(s) {
   $('dinnerOn').checked = s.dinner.on; $('dinnerFrom').value = s.dinner.from; $('dinnerTo').value = s.dinner.to;
   $('bedOn').checked = s.bedtime.on; $('bedAt').value = s.bedtime.at;
   toggleOff('f-lunch', 'lunchOn'); toggleOff('f-dinner', 'dinnerOn'); toggleOff('f-bed', 'bedOn');
+  $('tasksOn').checked = s.tasks.on; $('tasksEvery').value = s.tasks.every; toggleOff('f-tasks', 'tasksOn');
 
   for (const k of ['idleMin', 'awayMin', 'snoozeMin', 'cardSec', 'waterGoal']) $(k).value = s[k];
   $('startAtLogin').checked = s.startAtLogin;
@@ -180,6 +189,7 @@ function collect() {
     lunch: { on: $('lunchOn').checked, from: $('lunchFrom').value, to: $('lunchTo').value },
     dinner: { on: $('dinnerOn').checked, from: $('dinnerFrom').value, to: $('dinnerTo').value },
     bedtime: { on: $('bedOn').checked, at: $('bedAt').value },
+    tasks: { on: $('tasksOn').checked, every: Number($('tasksEvery').value) },
     idleMin: Number($('idleMin').value), awayMin: Number($('awayMin').value),
     snoozeMin: Number($('snoozeMin').value), cardSec: Number($('cardSec').value), waterGoal: Number($('waterGoal').value),
     startAtLogin: $('startAtLogin').checked,
